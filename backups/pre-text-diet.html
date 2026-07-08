@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gargantua — My Black Hole</title>
+<style>
+  :root{
+    --amber:#ffb347;
+    --panel:rgba(10,12,20,0.72);
+    --border:rgba(255,179,71,0.25);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:"Avenir Next","Segoe UI",system-ui,sans-serif;color:#eee;}
+  canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+  canvas#gl.dragging{cursor:grabbing;}
+
+  .title{
+    position:fixed;top:18px;left:50%;transform:translateX(-50%);
+    text-align:center;pointer-events:none;z-index:5;
+  }
+  .title h1{
+    font-size:clamp(20px,3.4vw,34px);letter-spacing:0.45em;font-weight:600;
+    color:#fff;text-shadow:0 0 24px rgba(255,179,71,0.8);
+  }
+  .title p{font-size:12px;letter-spacing:0.3em;color:var(--amber);margin-top:6px;text-transform:uppercase;}
+
+  .panel{
+    position:fixed;z-index:6;background:var(--panel);border:1px solid var(--border);
+    border-radius:14px;padding:14px 16px;backdrop-filter:blur(10px);
+    box-shadow:0 8px 32px rgba(0,0,0,0.6);
+  }
+  #controls{left:18px;bottom:18px;width:250px;}
+  #controls h2, #clocks h2, #factbox h2{
+    font-size:11px;letter-spacing:0.25em;text-transform:uppercase;color:var(--amber);margin-bottom:10px;
+  }
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  button{
+    background:rgba(255,179,71,0.12);border:1px solid var(--border);color:#ffd9a0;
+    border-radius:10px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:inherit;
+    transition:all .15s;
+  }
+  button:hover{background:rgba(255,179,71,0.3);color:#fff;}
+  button.active{background:var(--amber);color:#1a1206;font-weight:700;}
+  label.slider{display:block;font-size:11px;color:#bbb;margin-top:8px;}
+  input[type=range]{width:100%;accent-color:var(--amber);margin-top:4px;-webkit-appearance:none;height:30px;background:transparent;}
+  input[type=range]::-webkit-slider-runnable-track{height:8px;background:rgba(255,179,71,0.25);border-radius:4px;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--amber);margin-top:-9px;border:3px solid #1a1206;}
+  .hint{font-size:11px;color:#888;margin-top:10px;line-height:1.5;}
+
+  #clocks{right:18px;bottom:18px;width:255px;}
+  .clockrow{display:flex;justify-content:space-around;align-items:center;margin:6px 0 4px;}
+  .clock{text-align:center;}
+  .clock canvas{background:radial-gradient(circle,#101423,#05060c);border-radius:50%;border:1px solid var(--border);}
+  .clock .name{font-size:11px;color:#bbb;margin-top:6px;}
+  .clock .name b{color:#fff;}
+  #dilationText{font-size:12px;color:var(--amber);text-align:center;margin-top:8px;line-height:1.5;}
+  #clocks label.slider{margin-top:10px;}
+
+  #track{position:relative;height:56px;margin-top:12px;border-radius:12px;
+    background:linear-gradient(90deg, rgba(255,179,71,0.38), rgba(255,179,71,0.07) 45%, rgba(70,100,180,0.18));
+    border:1px solid var(--border);cursor:grab;touch-action:none;overflow:hidden;}
+  #track:active{cursor:grabbing;}
+  #bhDot{position:absolute;left:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;
+    background:#000;box-shadow:0 0 12px 3px rgba(255,179,71,0.9);pointer-events:none;}
+  #earthHome{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none;}
+  #rocket{position:absolute;top:50%;transform:translate(-50%,-50%) rotate(-90deg);font-size:27px;pointer-events:none;
+    filter:drop-shadow(0 0 6px rgba(255,179,71,0.85));}
+  #tally{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:11px;color:#bbb;gap:6px;}
+  #tally b{color:#fff;font-size:12px;}
+  #tally button{padding:4px 8px;font-size:10px;}
+
+  #map{position:fixed;inset:0;width:100%;height:100%;z-index:1;
+    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Ccircle cx='22' cy='22' r='15' fill='none' stroke='black' stroke-width='6' opacity='0.55'/%3E%3Ccircle cx='22' cy='22' r='15' fill='none' stroke='white' stroke-width='3'/%3E%3Ccircle cx='22' cy='22' r='3.5' fill='white' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 22 22, crosshair;}
+  body.blackhole #map{display:none;}
+  body.blackhole #gravBtn{display:none;}
+  body.journey #controls{display:none;}
+  body.journey #track{display:none;}
+  body.journey #distLabel{display:none;}
+  #modebtns{position:fixed;top:16px;right:16px;z-index:8;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;max-width:46vw;}
+  #micBtn.listening{background:#e2504a;color:#fff;border-color:#ff8a80;animation:micpulse 1.2s ease-in-out infinite;}
+  @keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,80,80,0.5)}50%{box-shadow:0 0 0 10px rgba(255,80,80,0)}}
+  #modebtns button{padding:13px 18px;font-size:14px;}
+  #zoomBtns{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:7;display:flex;gap:12px;}
+  body.journey #zoomBtns{display:none;}
+  #zoomBtns button{font-size:17px;padding:16px 26px;border-radius:16px;}
+  #ageRow{font-size:11px;color:#bbb;margin-top:8px;line-height:1.6;}
+  #ageRow input{width:42px;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#fff;border-radius:6px;padding:2px 4px;font-family:inherit;font-size:11px;}
+  #ageRow b{color:#fff;}
+  #storyCard{display:none;position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);z-index:25;width:min(400px,86vw);
+    background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px 22px;backdrop-filter:blur(12px);
+    box-shadow:0 12px 48px rgba(0,0,0,0.8);}
+  #storyCard.show{display:block;animation:pop .25s ease-out;}
+  @keyframes pop{from{transform:translate(-50%,-50%) scale(0.85);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+  #storyCard h3{font-size:18px;color:#fff;margin-bottom:8px;}
+  #storyCard p{font-size:13.5px;color:#ddd;line-height:1.65;margin-bottom:14px;}
+  #storyCard .btns{display:flex;gap:10px;justify-content:flex-end;}
+  #storyCard .btns button{flex:1;padding:16px 12px;font-size:16px;font-weight:600;}
+  #cardHint{font-size:11px;color:#8a8a8a;text-align:center;margin-top:10px;}
+  button svg{vertical-align:-3px;margin-right:6px;}
+  #cardT svg{vertical-align:-4px;margin-right:8px;}
+  #tally svg,#ageRow svg{vertical-align:-2px;margin-right:3px;}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:30;transition:opacity .3s;}
+
+  #factbox{
+    left:18px;top:18px;width:300px;
+  }
+  #factTitle{font-size:15px;color:#fff;font-weight:700;margin-bottom:6px;line-height:1.3;}
+  #factBody{font-size:13px;color:#ccc;line-height:1.6;}
+  #factNav{display:flex;justify-content:space-between;align-items:center;margin-top:12px;}
+  #factCount{font-size:11px;color:#777;letter-spacing:0.15em;}
+
+  #loading{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:#000;z-index:50;flex-direction:column;gap:14px;transition:opacity .8s;
+  }
+  #loading.hide{opacity:0;pointer-events:none;}
+  .ring{width:60px;height:60px;border-radius:50%;border:2px solid rgba(255,179,71,.2);border-top-color:var(--amber);animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loading p{letter-spacing:.35em;font-size:12px;color:var(--amber);text-transform:uppercase;}
+
+  @media (max-width:1350px){
+    .title h1{font-size:18px;letter-spacing:0.28em;}
+    .title p{font-size:10px;}
+    #modebtns button{padding:11px 13px;font-size:13px;}
+  }
+  @media (max-width:760px){
+    #factbox{width:calc(100% - 36px);}
+    #controls{width:calc(50% - 24px);}
+    #clocks{width:calc(50% - 24px);}
+  }
+</style>
+</head>
+<body>
+<div id="loading"><div class="ring"></div><p>Approaching Gargantua…</p></div>
+<canvas id="gl"></canvas>
+<canvas id="map"></canvas>
+<div id="flash"></div>
+<div id="modebtns">
+  <button id="mJourney" class="active">Journey</button>
+  <button id="mHole">Black hole</button>
+  <button id="gravBtn" class="active">Gravity: ON</button>
+  <button id="voiceBtn" class="active">Read aloud: ON</button>
+  <button id="micBtn">Voice control: OFF</button>
+  <button id="sndBtn" class="active">Sounds: ON</button>
+</div>
+<div id="zoomBtns">
+  <button id="zoomIn">Fly closer</button>
+  <button id="zoomOut">Fly away</button>
+</div>
+<div id="storyCard"><h3 id="cardT"></h3><p id="cardB"></p><div class="btns" id="cardBtns"></div><div id="cardHint">tap anywhere or press an arrow key to keep flying</div></div>
+
+<div class="title">
+  <h1>GARGANTUA</h1>
+  <p>a black hole, just like in Interstellar</p>
+</div>
+
+<div class="panel" id="factbox">
+  <h2>Did you know?</h2>
+  <div id="factTitle"></div>
+  <div id="factBody"></div>
+  <div id="factNav">
+    <button id="prevFact">&#8592; Back</button>
+    <span id="factCount"></span>
+    <button id="nextFact">Next &#8594;</button>
+  </div>
+</div>
+
+<div class="panel" id="controls">
+  <h2>Fly your spaceship</h2>
+  <div class="btnrow">
+    <button id="vMovie" class="active">Movie view</button>
+    <button id="vTop">Top view</button>
+    <button id="vClose">Fly closer</button>
+  </div>
+  <div class="btnrow">
+    <button id="orbitBtn" class="active">Auto-orbit: ON</button>
+    <button id="qualBtn">Quality: Balanced</button>
+  </div>
+  <label class="slider">Disk brightness
+    <input type="range" id="glow" min="0.3" max="2.2" step="0.01" value="1.0">
+  </label>
+  <div class="hint">Drag to look around &middot; Scroll or pinch to fly closer or farther &middot; Flying closer really slows YOUR clock &#8594; watch the panel on the right!<br>See the little blue planet? Click it to land on Miller's world!</div>
+</div>
+
+<div class="panel" id="clocks">
+  <h2>Time runs slower here!</h2>
+  <div class="clockrow">
+    <div class="clock"><canvas id="earthClock" width="86" height="86"></canvas><div class="name"><b>Earth</b> clock</div></div>
+    <div class="clock"><canvas id="shipClock" width="86" height="86"></canvas><div class="name"><b>Your</b> clock</div></div>
+  </div>
+  <div id="dilationText"></div>
+  <div id="track" title="Drag the rocket toward the black hole!">
+    <div id="bhDot"></div>
+    <div id="earthHome"></div>
+    <div id="rocket"></div>
+  </div>
+  <label class="slider" id="distLabel">How close to the black hole? (this really flies your ship!)
+    <input type="range" id="dilation" min="0" max="100" step="1" value="59">
+  </label>
+  <div id="tally">
+    <span id="tallyYou">You: <b id="shipT">0 sec</b></span>
+    <span id="tallyEarth">Earth: <b id="earthT">0 sec</b></span>
+    <button id="resetT">Restart</button>
+  </div>
+  <div id="ageRow">Your age: <input id="kidAge" type="number" value="8" min="4" max="99"> → your friend on Earth is now <b id="friendAge">8.0</b> years old</div>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------
+// Gargantua: gravitational lensing black hole, Interstellar style
+// Ray-marched photons bent by gravity (shadertoy-style geodesics)
+// ---------------------------------------------------------------
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', {antialias:false});
+
+const VERT = `#version 300 es
+precision highp float;
+const vec2 verts[3] = vec2[3](vec2(-1.,-1.), vec2(3.,-1.), vec2(-1.,3.));
+void main(){ gl_Position = vec4(verts[gl_VertexID],0.,1.); }`;
+
+const FRAG = `#version 300 es
+precision highp float;
+out vec4 fragColor;
+uniform vec2  uRes;
+uniform float uTime;
+uniform vec3  uCam;      // camera position
+uniform float uGlow;     // disk brightness
+
+const float RS   = 1.0;   // event horizon radius
+const float RIN  = 2.35;  // inner disk edge
+const float ROUT = 11.0;  // outer disk edge
+const int   STEPS = 320;
+
+// ---- hash / noise ----
+float hash12(vec2 p){
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float noise2(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(hash12(i), hash12(i+vec2(1,0)), f.x),
+             mix(hash12(i+vec2(0,1)), hash12(i+vec2(1,1)), f.x), f.y);
+}
+float fbm(vec2 p){
+  float a = 0.5, s = 0.0;
+  for(int i=0;i<4;i++){ s += a*noise2(p); p = p*2.13 + 17.7; a *= 0.5; }
+  return s;
+}
+
+// ---- starfield (sampled by escaped rays) ----
+vec3 stars(vec3 d){
+  vec3 col = vec3(0.0);
+  // two layers of point stars
+  for(float layer=0.0; layer<2.0; layer++){
+    float scale = 220.0 + layer*260.0;
+    vec2 uv = vec2(atan(d.z,d.x), asin(clamp(d.y,-1.,1.)));
+    vec2 cell = floor(uv*scale);
+    float h = hash12(cell + layer*91.7);
+    if(h > 0.9965){
+      vec2 f = fract(uv*scale) - 0.5;
+      float star = smoothstep(0.45, 0.0, length(f));
+      float tw = 0.7 + 0.3*sin(uTime*(1.0+h*4.0) + h*40.0);
+      vec3 tint = mix(vec3(0.7,0.8,1.0), vec3(1.0,0.85,0.7), fract(h*13.7));
+      col += star * tw * tint * (h-0.9965)*280.0;
+    }
+  }
+  // faint milky-way band
+  float band = exp(-abs(d.y+0.18)*4.5) * 0.06;
+  col += band * vec3(0.45,0.5,0.75) * fbm(d.xz*6.0);
+  return col;
+}
+
+// ---- accretion disk color at a plane-crossing point ----
+vec4 disk(vec3 p, vec3 rd){
+  float r = length(p.xz);
+  if(r < RIN || r > ROUT) return vec4(0.0);
+  float phi = atan(p.z, p.x);
+
+  // Keplerian orbital speed (fake but pretty), inner gas spins faster
+  float omega = 1.0/(pow(r,1.5)*0.55 + 0.6);
+  // spiral streak texture rotating with the gas
+  float sp = phi + 2.2*log(r);
+  vec2 tc = vec2(r*1.6, sp*2.4 - uTime*omega*7.0);
+  float streak = fbm(tc) * 0.75 + fbm(tc*3.1)*0.25;
+  streak = pow(streak, 1.6) * 1.9;
+
+  // radial brightness falloff, hot inner edge
+  float radial = pow(RIN/r, 2.4);
+  float edgeIn  = smoothstep(RIN, RIN+0.45, r);
+  float edgeOut = 1.0 - smoothstep(ROUT-3.0, ROUT, r);
+  float I = radial * streak * edgeIn * edgeOut;
+
+  // doppler beaming: gas moving toward camera is brighter/bluer
+  vec3 vel = normalize(vec3(-sin(phi), 0.0, cos(phi))) * min(0.65, 0.45/sqrt(max(r-RS,0.15)));
+  float dopp = 1.0 / (1.0 + dot(vel, normalize(rd)));
+  dopp = pow(dopp, 3.0);
+  I *= mix(1.0, dopp, 0.85);
+
+  // gravitational redshift dims the inner edge slightly
+  I *= sqrt(clamp(1.0 - RS/r, 0.05, 1.0)) + 0.35;
+
+  // temperature color: white-hot inside -> amber -> deep orange outside
+  float t = clamp((r-RIN)/(ROUT-RIN), 0.0, 1.0);
+  vec3 cHot  = vec3(1.35, 1.22, 1.05);
+  vec3 cMid  = vec3(1.25, 0.72, 0.30);
+  vec3 cCool = vec3(0.75, 0.28, 0.10);
+  vec3 col = mix(cHot, cMid, smoothstep(0.0,0.45,t));
+  col = mix(col, cCool, smoothstep(0.4,1.0,t));
+  // doppler tint
+  col = mix(col, col*vec3(0.75,0.85,1.25), clamp((dopp-1.0)*0.25, -0.25, 0.5));
+
+  I *= uGlow;
+  float alpha = clamp(I*1.4, 0.0, 1.0);
+  return vec4(col * I, alpha);
+}
+
+uniform vec3  uPlanet;   // Miller's planet position
+uniform float uPlanetR;
+
+// ---- Miller's ocean planet ----
+vec3 shadePlanet(vec3 p, vec3 rd){
+  vec3 n = normalize(p - uPlanet);
+  vec3 L = normalize(-uPlanet);          // lit by Gargantua's glowing disk
+  float diff = max(dot(n,L), 0.0)*0.95 + 0.18;
+  float w = fbm(vec2(atan(n.z,n.x)*3.5, n.y*6.0) + uTime*0.06);
+  vec3 ocean = mix(vec3(0.03,0.12,0.30), vec3(0.10,0.38,0.65), w);
+  ocean += smoothstep(0.60,0.74,w) * vec3(0.75,0.85,0.9);
+  float rim = pow(1.0 - abs(dot(n, rd)), 2.0);
+  return ocean*diff + rim*vec3(0.4,0.55,0.85)*0.5;
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy*2.0 - uRes) / uRes.y;
+
+  // camera looks at origin
+  vec3 ro = uCam;
+  vec3 fw = normalize(-ro);
+  vec3 rt = normalize(cross(vec3(0.0,1.0,0.0), fw));
+  vec3 up = cross(fw, rt);
+  vec3 rd = normalize(fw*1.35 + uv.x*rt + uv.y*up);
+
+  vec3 pos = ro;
+  vec3 vel = rd;
+  vec3 col = vec3(0.0);
+  float transmit = 1.0;
+  bool captured = false;
+  float minr = 1e5;
+
+  // conserved angular momentum^2 of the photon
+  vec3 h = cross(pos, vel);
+  float h2 = dot(h,h);
+
+  for(int i=0;i<STEPS;i++){
+    float r = length(pos);
+    minr = min(minr, r);
+    if(r < RS){ captured = true; break; }
+    if(r > 40.0 && dot(pos, vel) > 0.0) break;
+
+    // adaptive step: small near hole, bigger far away
+    float dt = clamp(r*0.11, 0.045, 0.65);
+    // shrink the step near the disk plane so we don't tunnel through
+    dt = min(dt, max(abs(pos.y)*0.35, 0.045));
+
+    vec3 prev = pos;
+    // gravity bends the light: a = -1.5 h^2 r / |r|^5
+    vec3 acc = -1.5 * h2 * pos / pow(r*r, 2.5);
+    vel += acc * dt;
+    pos += vel * dt;
+
+    // did the (bent!) ray hit Miller's planet?
+    {
+      vec3 seg = pos - prev;
+      float sl = length(seg);
+      vec3 sd = seg / sl;
+      vec3 oc = prev - uPlanet;
+      float b = dot(oc, sd);
+      float cc = dot(oc,oc) - uPlanetR*uPlanetR;
+      float disc = b*b - cc;
+      if(disc > 0.0){
+        float th = -b - sqrt(disc);
+        if(th > 0.0 && th < sl){
+          col += transmit * shadePlanet(prev + sd*th, sd);
+          transmit = 0.0;
+          captured = true;
+          break;
+        }
+      }
+    }
+
+    // did the ray cross the disk plane?
+    if(prev.y * pos.y < 0.0 && transmit > 0.02){
+      float f = prev.y / (prev.y - pos.y);
+      vec3 hit = mix(prev, pos, f);
+      vec4 d = disk(hit, vel);
+      col += transmit * d.rgb;
+      transmit *= (1.0 - d.a*0.9);
+    }
+  }
+
+  if(!captured){
+    col += transmit * stars(normalize(vel));
+  }
+
+  // soft photon-ring glow just OUTSIDE the shadow (never inside it)
+  if(!captured){
+    float glow = exp(-max(minr-RS,0.0)*2.4) * 0.5 * uGlow;
+    col += glow * vec3(1.15, 0.75, 0.4);
+  }
+
+  // tonemap (ACES-ish) + gamma + vignette
+  col = (col*(2.51*col + 0.03)) / (col*(2.43*col + 0.59) + 0.14);
+  col = pow(clamp(col,0.0,1.0), vec3(0.4545));
+  float vig = 1.0 - 0.28*dot(uv*0.55, uv*0.55);
+  col *= vig;
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+function compile(type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const U = {
+  res:  gl.getUniformLocation(prog,'uRes'),
+  time: gl.getUniformLocation(prog,'uTime'),
+  cam:  gl.getUniformLocation(prog,'uCam'),
+  glow: gl.getUniformLocation(prog,'uGlow'),
+  planet:  gl.getUniformLocation(prog,'uPlanet'),
+  planetR: gl.getUniformLocation(prog,'uPlanetR'),
+};
+
+// ---- camera state ----
+const QUALITIES = [
+  {name:'Fast',     scale:0.55},
+  {name:'Balanced', scale:0.85},
+  {name:'Sharp',    scale:Math.min(1.6, window.devicePixelRatio||1)},
+];
+let qIdx = 1;
+let yaw = 0.0, pitch = 0.085, dist = 16.5;
+let tYaw = yaw, tPitch = pitch, tDist = dist;
+let autoOrbit = true;
+let glowVal = 1.0;
+
+function resize(){
+  let q = QUALITIES[qIdx].scale;
+  q = Math.min(q, 1920/Math.max(window.innerWidth,1)); // cap raymarch cost on huge screens
+  canvas.width  = Math.round(window.innerWidth  * q);
+  canvas.height = Math.round(window.innerHeight * q);
+}
+window.addEventListener('resize', resize); resize();
+
+// drag / touch
+let dragging=false, lx=0, ly=0;
+canvas.addEventListener('pointerdown', e=>{dragging=true; lx=e.clientX; ly=e.clientY; canvas.classList.add('dragging'); canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  tYaw   += (e.clientX-lx)*0.005;
+  tPitch += (e.clientY-ly)*0.004;
+  tPitch = Math.max(-1.35, Math.min(1.35, tPitch));
+  lx=e.clientX; ly=e.clientY;
+});
+canvas.addEventListener('pointerup', ()=>{dragging=false; canvas.classList.remove('dragging');});
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  tDist *= (1 + Math.sign(e.deltaY)*0.09);
+  tDist = Math.max(4.5, Math.min(34, tDist));
+},{passive:false});
+
+// pinch zoom
+let pinchD=0;
+canvas.addEventListener('touchmove', e=>{
+  if(e.touches.length===2){
+    const dx=e.touches[0].clientX-e.touches[1].clientX, dy=e.touches[0].clientY-e.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
+    if(pinchD>0){ tDist *= pinchD/d; tDist=Math.max(4.5,Math.min(34,tDist)); }
+    pinchD=d;
+  }
+},{passive:true});
+canvas.addEventListener('touchend', ()=>{pinchD=0;});
+
+// preset views
+const presets = {
+  vMovie:{pitch:0.085, dist:16.5},
+  vTop:  {pitch:1.15,  dist:20.0},
+  vClose:{pitch:0.12,  dist:7.0},
+};
+for(const id of Object.keys(presets)){
+  document.getElementById(id).addEventListener('click', ()=>{
+    tPitch = presets[id].pitch; tDist = presets[id].dist;
+    document.querySelectorAll('#controls .btnrow:first-of-type button').forEach(b=>b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  });
+}
+const orbitBtn = document.getElementById('orbitBtn');
+orbitBtn.addEventListener('click', ()=>{
+  autoOrbit = !autoOrbit;
+  orbitBtn.textContent = 'Auto-orbit: ' + (autoOrbit?'ON':'OFF');
+  orbitBtn.classList.toggle('active', autoOrbit);
+});
+document.getElementById('glow').addEventListener('input', e=> glowVal = parseFloat(e.target.value));
+document.getElementById('zoomIn').addEventListener('click', ()=>{ tDist = Math.max(4.5, tDist*0.78); if(window.sfxWhoosh) sfxWhoosh(); });
+document.getElementById('zoomOut').addEventListener('click', ()=>{ tDist = Math.min(34, tDist*1.28); if(window.sfxWhoosh) sfxWhoosh(); });
+const qualBtn = document.getElementById('qualBtn');
+try{ const savedQ = parseInt(localStorage.getItem('gargQuality')); if(!isNaN(savedQ) && QUALITIES[savedQ]){ qIdx = savedQ; qualBtn.textContent = 'Quality: ' + QUALITIES[qIdx].name; resize(); } }catch(_){}
+qualBtn.addEventListener('click', ()=>{
+  qIdx = (qIdx+1) % QUALITIES.length;
+  qualBtn.textContent = 'Quality: ' + QUALITIES[qIdx].name;
+  try{ localStorage.setItem('gargQuality', qIdx); }catch(_){}
+  resize();
+});
+
+// ---- render loop ----
+const t0 = performance.now();
+let firstFrame = true;
+function frame(){
+  const t = (performance.now()-t0)/1000;
+  if(autoOrbit && !dragging) tYaw += 0.0011;
+  yaw   += (tYaw-yaw)*0.06;
+  pitch += (tPitch-pitch)*0.06;
+  dist  += (tDist-dist)*0.06;
+
+  const cx = dist*Math.cos(pitch)*Math.sin(yaw);
+  const cy = dist*Math.sin(pitch);
+  const cz = -dist*Math.cos(pitch)*Math.cos(yaw);
+
+  const pa = t*0.10;
+  const ppx = 3.4*Math.cos(pa), ppy = 0.38, ppz = 3.4*Math.sin(pa);
+  window.camNow = [cx,cy,cz];
+  window.planetNow = [ppx,ppy,ppz];
+
+  if(window.MODE === 'journey'){ requestAnimationFrame(frame); return; }
+
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.uniform2f(U.res, canvas.width, canvas.height);
+  gl.uniform1f(U.time, t);
+  gl.uniform3f(U.cam, cx, cy, cz);
+  gl.uniform1f(U.glow, glowVal);
+  gl.uniform3f(U.planet, ppx, ppy, ppz);
+  gl.uniform1f(U.planetR, 0.32);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  if(firstFrame){ firstFrame=false; setTimeout(()=>document.getElementById('loading').classList.add('hide'), 600); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------------------------------------------------------------
+// Fun facts (2nd-grade friendly)
+// ---------------------------------------------------------------
+const FACTS = [
+  {t:"What is a black hole?", b:"A black hole pulls SO hard that nothing can escape it — not even light! That's why the middle looks like a perfectly black circle."},
+  {t:"Why is there a glowing ring?", b:"That's super-hot gas spinning around the black hole really, really fast — like glittery water swirling around a drain. It glows because it's hotter than the Sun!"},
+  {t:"The coolest light trick ever", b:"See the glow ABOVE and BELOW the black circle? The black hole bends light like a giant magnifying glass, so you can see the back of the ring from the front. That's called gravitational lensing!"},
+  {t:"Time gets slow near it!", b:"In the movie Interstellar, the astronauts visit a planet near this black hole. They stay for a few hours… but 23 YEARS pass on Earth! Gravity makes time run slower. Drag the little rocket toward the black hole and watch the Earth clock go crazy!"},
+  {t:"It's called Gargantua", b:"The black hole in Interstellar is named Gargantua. It weighs as much as 100 MILLION Suns. Scientists helped the movie makers draw it correctly — and it looked just like this!"},
+  {t:"The point of no return", b:"The edge of the black circle is called the event horizon. It's like a waterfall for light: once anything crosses it, there is no way back out."},
+  {t:"Could we fall in?", b:"Don't worry! The nearest big black hole is so far away that even the fastest rocket would take millions of years to get there. We're just visiting with our imagination."},
+];
+let fi = 0;
+function showFact(){
+  document.getElementById('factTitle').textContent = FACTS[fi].t;
+  document.getElementById('factBody').textContent  = FACTS[fi].b;
+  document.getElementById('factCount').textContent = (fi+1) + ' / ' + FACTS.length;
+}
+document.getElementById('prevFact').addEventListener('click', ()=>{ fi=(fi-1+FACTS.length)%FACTS.length; showFact(); });
+document.getElementById('nextFact').addEventListener('click', ()=>{ fi=(fi+1)%FACTS.length; showFact(); });
+showFact();
+
+// ---------------------------------------------------------------
+// Time dilation clocks (Miller's planet demo)
+// ---------------------------------------------------------------
+const earthC = document.getElementById('earthClock').getContext('2d');
+const shipC  = document.getElementById('shipClock').getContext('2d');
+const dilSlider = document.getElementById('dilation');
+const dilText = document.getElementById('dilationText');
+
+function drawClock(ctx, angle, color){
+  const w=86, c=w/2;
+  ctx.clearRect(0,0,w,w);
+  ctx.strokeStyle='rgba(255,255,255,0.25)';
+  ctx.lineWidth=1;
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(c+Math.cos(a)*(c-6), c+Math.sin(a)*(c-6));
+    ctx.lineTo(c+Math.cos(a)*(c-10), c+Math.sin(a)*(c-10));
+    ctx.stroke();
+  }
+  // minute hand
+  ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(c,c);
+  ctx.lineTo(c+Math.cos(angle-Math.PI/2)*(c-14), c+Math.sin(angle-Math.PI/2)*(c-14));
+  ctx.stroke();
+  // hour hand
+  ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(c,c);
+  ctx.lineTo(c+Math.cos(angle/12-Math.PI/2)*(c-26), c+Math.sin(angle/12-Math.PI/2)*(c-26));
+  ctx.stroke();
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(c,c,3,0,7); ctx.fill();
+}
+
+let earthAngle=0;
+
+// ---- distance <-> time linkage ----
+// The clocks are driven by the ACTUAL spaceship (camera) distance,
+// and the slider / rocket track fly the real ship. One cause, one effect.
+const DMIN = 4.5, DMAX = 34;
+function vFromDist(d){ return Math.max(0, Math.min(100, (DMAX-d)/(DMAX-DMIN)*100)); }
+function distFromV(v){ return DMAX - (v/100)*(DMAX-DMIN); }
+function ratioFromV(v){ return 1 + Math.pow(v/100, 3)*61319; } // at 100 → 1 hr = 7 yrs
+
+let sliderHeld = false;
+dilSlider.addEventListener('pointerdown', ()=> sliderHeld = true);
+window.addEventListener('pointerup', ()=> sliderHeld = false);
+dilSlider.addEventListener('input', ()=>{ tDist = distFromV(parseFloat(dilSlider.value)); });
+
+// draggable rocket track (black hole on the left, Earth on the right)
+const track  = document.getElementById('track');
+const rocket = document.getElementById('rocket');
+function trackSet(e){
+  const r = track.getBoundingClientRect();
+  const frac = Math.max(0, Math.min(1, (e.clientX - r.left - 20)/(r.width - 44)));
+  tDist = distFromV((1-frac)*100); // left edge = closest
+}
+let trackDrag = false;
+track.addEventListener('pointerdown', e=>{ trackDrag=true; track.setPointerCapture(e.pointerId); trackSet(e); });
+track.addEventListener('pointermove', e=>{ if(trackDrag) trackSet(e); });
+track.addEventListener('pointerup',   ()=> trackDrag=false);
+
+// running totals: how much time has passed for you vs Earth
+let shipSec = 0, earthSec = 0;
+function fmtTime(s){
+  if(s < 60)        return s.toFixed(0) + ' sec';
+  if(s < 3600)      return (s/60).toFixed(1) + ' min';
+  if(s < 86400)     return (s/3600).toFixed(1) + ' hours';
+  if(s < 31536000)  return (s/86400).toFixed(1) + ' days';
+  return (s/31536000).toFixed(1) + ' YEARS';
+}
+const shipT = document.getElementById('shipT');
+const earthT = document.getElementById('earthT');
+document.getElementById('resetT').addEventListener('click', ()=>{ shipSec = 0; earthSec = 0; });
+function fmtRatio(r){
+  const earthHours = r; // per 1 ship hour
+  if(earthHours < 1.05) return "Far away: your clock and Earth's tick together.";
+  if(earthHours < 24) return "1 hour for you = " + earthHours.toFixed(1) + " hours on Earth!";
+  const days = earthHours/24;
+  if(days < 365) return "1 hour for you = " + days.toFixed(1) + " days on Earth!";
+  const yrs = days/365;
+  return "1 hour for you = " + yrs.toFixed(1) + " YEARS on Earth! (Miller's planet: 7 years)";
+}
+let lastT = performance.now();
+function clockLoop(){
+  const now = performance.now();
+  const dt = Math.min(0.1, (now-lastT)/1000); lastT=now;
+  const v = vFromDist(dist);
+  const ratio = window.getDilation ? window.getDilation() : 1;
+  if(window.MODE !== 'journey'){
+    if(!sliderHeld) dilSlider.value = Math.round(v);
+    rocket.style.left = (8 + (1 - v/100)*84) + '%';
+  }
+  shipSec  += dt*60;   // story time: 1 real second = 1 minute for you
+  earthSec += dt*60*ratio;
+  shipT.textContent  = fmtTime(shipSec);
+  earthT.textContent = fmtTime(earthSec);
+  const baseAge = parseFloat(document.getElementById('kidAge').value) || 8;
+  document.getElementById('friendAge').textContent = (baseAge + earthSec/31536000).toFixed(1);
+  // ship clock ticks at a steady gentle speed
+  const shipSpeed = 0.6; // rad/s
+  const earthSpeed = shipSpeed * Math.min(ratio, 60); // cap visual spin
+  earthAngle += earthSpeed*dt;
+  drawClock(shipC, earthAngle/Math.min(ratio,60), '#ffb347');
+  drawClock(earthC, earthAngle, '#7fb4ff');
+  dilText.textContent = (window.dilPrefix || '') + fmtRatio(ratio);
+  requestAnimationFrame(clockLoop);
+}
+requestAnimationFrame(clockLoop);
+</script>
+<script>
+"use strict";
+// =====================  MISSION MODE: Earth → Gargantua  =====================
+var millerLanded = false;
+window.MODE = 'journey';
+window.dilPrefix = '';
+
+const MAPC = document.getElementById('map');
+const mx = MAPC.getContext('2d');
+function mapResize(){
+  const dpr = window.devicePixelRatio || 1;
+  MAPC.width = Math.round(innerWidth*dpr); MAPC.height = Math.round(innerHeight*dpr);
+}
+window.addEventListener('resize', mapResize); mapResize();
+
+// ---- SVG icons (crisp + consistent, replaces emoji) ----
+const ICONS = {
+  rocket:'<path d="M12 2c2.8 2 4.5 5.5 4.5 9.5l1.8 3-3-.8c-.8 1.8-2.3 3.3-3.3 3.3s-2.5-1.5-3.3-3.3l-3 .8 1.8-3C7.5 7.5 9.2 4 12 2z" fill="currentColor"/><circle cx="12" cy="9" r="1.7" fill="#0b0d14"/>',
+  hole:'<circle cx="12" cy="12" r="4.2" fill="currentColor"/><ellipse cx="12" cy="12" rx="9.5" ry="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  web:'<g fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/></g>',
+  speaker:'<path d="M4 9v6h4l5 4.5v-15L8 9H4z" fill="currentColor"/><path d="M16 9a4.2 4.2 0 010 6M18.5 7a7.5 7.5 0 010 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M6 12a6 6 0 0012 0M12 18v3M9 21h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  note:'<path d="M9 18.5V6l9-2.2V16" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6.8" cy="18.5" r="2.4" fill="currentColor"/><circle cx="15.8" cy="16" r="2.4" fill="currentColor"/>',
+  zoomin:'<g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15.3 15.3L20 20M8 10.5h5M10.5 8v5"/></g>',
+  zoomout:'<g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15.3 15.3L20 20M8 10.5h5"/></g>',
+  earth:'<circle cx="12" cy="12" r="9" fill="#1d6fd1"/><path d="M7 9c1.5-2 4-2.5 5.5-1.2S15 10 17 9.4c1 2.4-.5 4.2-2.6 4-2.1-.2-3 2.3-5 2.3S6 13 7 9z" fill="#3fae5a"/>',
+  saturn:'<circle cx="12" cy="12" r="5" fill="currentColor"/><ellipse cx="12" cy="12" rx="10" ry="3.2" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(-18 12 12)"/>',
+  sparkle:'<path d="M12 2l2 7 7 3-7 3-2 7-2-7-7-3 7-3 2-7z" fill="currentColor"/>',
+  snow:'<g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"><path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9"/></g>',
+  wave:'<path d="M3 14.5c2-3.5 4-3.5 6 0s4 3.5 6 0 4-3.5 6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  splash:'<path d="M12 3c3 4 5 7 5 10a5 5 0 01-10 0c0-3 2-6 5-10z" fill="currentColor"/>',
+  cake:'<rect x="4" y="12" width="16" height="8" rx="2" fill="currentColor"/><path d="M12 5.5V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><circle cx="12" cy="4" r="1.2" fill="currentColor"/>'
+};
+function icon(n, s){ return '<svg width="'+(s||16)+'" height="'+(s||16)+'" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[n]||'')+'</svg>'; }
+function setBtn(id, ic, label){ const b=document.getElementById(id); if(b) b.innerHTML = icon(ic,16)+'<span class="blabel">'+label+'</span>'; }
+function setLabel(id, txt){ const el=document.querySelector('#'+id+' .blabel'); if(el) el.textContent = txt; }
+setBtn('mJourney','rocket','Journey');
+setBtn('mHole','hole','Black hole');
+setBtn('gravBtn','web','Gravity: ON');
+setBtn('voiceBtn','speaker','Read aloud: ON');
+setBtn('micBtn','mic','Voice control: OFF');
+setBtn('sndBtn','note','Sounds: ON');
+setBtn('zoomIn','zoomin','Fly closer');
+setBtn('zoomOut','zoomout','Fly away');
+document.getElementById('earthHome').innerHTML = icon('earth',18);
+document.getElementById('rocket').innerHTML = icon('rocket',26);
+document.getElementById('tallyYou').insertAdjacentHTML('afterbegin', icon('rocket',12)+' ');
+document.getElementById('tallyEarth').insertAdjacentHTML('afterbegin', icon('earth',12)+' ');
+document.getElementById('ageRow').insertAdjacentHTML('afterbegin', icon('cake',13)+' ');
+
+const DIVX = 0.455;
+const STOPS = [
+  {id:'earth',  name:'Earth',           x:0.08,  y:0.60, r:26, ratio:1,       note:'clocks tick normally'},
+  {id:'saturn', name:'Saturn',          x:0.30,  y:0.36, r:30, ratio:1.00001, note:'the wormhole is here!'},
+  {id:'worm',   name:'Wormhole',        x:0.415, y:0.47, r:20, ratio:1.00001, note:'shortcut!'},
+  {id:'mann',   name:"Mann's planet",   x:0.60,  y:0.28, r:23, ratio:1.15,    note:'1 hr \u2248 1 hr 9 min'},
+  {id:'miller', name:"Miller's planet", x:0.70,  y:0.47, r:23, ratio:61320,   note:'1 hr = 7 YEARS!'},
+  {id:'garg',   name:'GARGANTUA',       x:0.90,  y:0.30, r:34, ratio:61320,   note:'time almost stops'},
+];
+
+const CARDS = {
+  earth:  {icon:'earth', t:'Home sweet home', b:"This is where your friend stays. Out here your clock and Earth's clock tick together. Fly to Saturn \u2014 something strange is waiting there\u2026"},
+  saturn: {icon:'saturn', t:'Saturn', b:"The ringed giant! In the movie, a mysterious wormhole appeared near Saturn. See it glowing next door? Fly right into it!"},
+  worm:   {icon:'sparkle', t:'You flew through the wormhole!', b:"A wormhole is a shortcut through space \u2014 like folding a piece of paper so two far-away dots touch. You just jumped to a whole different galaxy!"},
+  mann:   {icon:'snow', t:"Mann's planet", b:"Everything is frozen here \u2014 even the clouds are hard ice! It's still far from Gargantua, so time is only a tiny bit slow: 1 hour here is about 1 hour 9 minutes on Earth."},
+  miller: {icon:'wave', t:"Miller's planet", b:"Waves as tall as mountains! This planet is SO close to Gargantua that time crawls: 1 hour here = 7 YEARS on Earth. Watch your friend's age on the right \u2014 don't stay too long!"},
+  garg:   {icon:'hole', t:'GARGANTUA', b:"You made it, pilot! This is the giant black hole itself. Ready to orbit it up close, just like in the movie?", btns:'<button onclick="gargOrbit()">Orbit the black hole \u2192</button><button onclick="closeCard()">Keep flying</button>'},
+  miller3d:{icon:'splash', t:"You landed on Miller's planet!", b:"Splash! While you stand on these mountain-sized waves, 1 hour = 7 YEARS on Earth. Look how fast the Earth clock spins now. Take off when you're ready!", btns:'<button onclick="takeOff()">Take off</button>'},
+  fellin: {icon:'hole', t:'You fell in!', b:"The pull got too strong! Past the point of no return, NOTHING can escape a black hole \u2014 not light, not rockets, nothing. Good thing this is imagination: rescuing you back to Miller's planet. Next time, fire your engines AWAY from the hole before it grabs you!"},
+};
+
+const cardEl = document.getElementById('storyCard');
+function showCard(id){
+  const c = CARDS[id];
+  document.getElementById('cardT').innerHTML = (c.icon ? icon(c.icon, 22) : '') + c.t;
+  document.getElementById('cardB').textContent = c.b;
+  document.getElementById('cardBtns').innerHTML = c.btns || '<button onclick="closeCard()">Got it!</button>';
+  cardEl.classList.add('show');
+  say(c.t + '. ' + c.b);
+}
+window.closeCard = function(){ cardEl.classList.remove('show'); if(window.stopTalking) stopTalking(); else try{ speechSynthesis.cancel(); }catch(_){} };
+// no buttons needed: tapping anywhere (except an action button) dismisses the card
+document.addEventListener('pointerdown', e=>{
+  if(!cardEl.classList.contains('show')) return;
+  if(e.target && e.target.closest && e.target.closest('#cardBtns')) return;
+  closeCard();
+}, true);
+window.gargOrbit = function(){ closeCard(); setMode('blackhole'); };
+window.takeOff  = function(){ millerLanded = false; closeCard(); };
+
+function setMode(m){
+  window.MODE = m;
+  document.body.className = m;
+  document.getElementById('mJourney').classList.toggle('active', m === 'journey');
+  document.getElementById('mHole').classList.toggle('active', m === 'blackhole');
+}
+window.setMode = setMode;
+document.getElementById('mJourney').addEventListener('click', ()=> setMode('journey'));
+document.getElementById('mHole').addEventListener('click', ()=> setMode('blackhole'));
+
+// ---- VOICE: read-aloud + voice commands ----
+let voiceOn = true;
+let kidVoice = null;
+function pickVoice(){
+  const vs = speechSynthesis.getVoices();
+  const en = vs.filter(v => v.lang && v.lang.startsWith('en'));
+  kidVoice = en.find(v => /premium/i.test(v.name))
+          || en.find(v => /enhanced/i.test(v.name))
+          || en.find(v => /Ava|Zoe|Allison/i.test(v.name))
+          || en.find(v => /Google US English/i.test(v.name))
+          || en.find(v => /Samantha|Karen|Moira/i.test(v.name))
+          || en[0] || null;
+}
+try{ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }catch(_){}
+function stripEmoji(s){ return s.replace(/[\u{1F000}-\u{1FAFF}]|[\u2600-\u27BF]|\uFE0F/gu, '').trim(); }
+// neural voice (Kokoro-82M, runs in the browser) — loads in background, upgrades read-aloud when ready
+const neural = { ready:false, tts:null, audioEl:null, url:null, cache:new Map() };
+async function neuralBlobURL(clean){
+  if(neural.cache.has(clean)) return neural.cache.get(clean);
+  const audio = await neural.tts.generate(clean, { voice:'af_heart', speed:0.95 });
+  const url = URL.createObjectURL(audio.toBlob());
+  if(neural.cache.size > 40){ const k = neural.cache.keys().next().value; try{ URL.revokeObjectURL(neural.cache.get(k)); }catch(_){} neural.cache.delete(k); }
+  neural.cache.set(clean, url);
+  return url;
+}
+let sayToken = 0;
+(async () => {
+  try{
+    const { KokoroTTS } = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm');
+    let tts = null;
+    if(navigator.gpu){
+      try{ tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype:'fp32', device:'webgpu' }); }catch(_){}
+    }
+    if(!tts) tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype:'q8', device:'wasm' });
+    neural.tts = tts; neural.ready = true;
+    if(voiceOn) setLabel('voiceBtn', 'Read aloud: ON (natural)');
+    console.log('Neural voice ready');
+    // pre-generate every story card and fun fact so narration starts instantly
+    setTimeout(async () => {
+      try{
+        const texts = [];
+        for(const k in CARDS) texts.push(stripEmoji(CARDS[k].t + '. ' + CARDS[k].b));
+        if(window.FACTS) for(const f of FACTS) texts.push(stripEmoji(f.t + '. ' + f.b));
+        for(const tx of texts){ if(!neural.cache.has(tx)) await neuralBlobURL(tx); }
+        console.log('Narration cache warmed:', neural.cache.size);
+      }catch(_){}
+    }, 1500);
+  }catch(e){ console.warn('Neural TTS unavailable, keeping system voice:', e); }
+})();
+function stopTalking(){
+  try{ speechSynthesis.cancel(); }catch(_){}
+  if(neural.audioEl){ try{ neural.audioEl.pause(); }catch(_){} neural.audioEl = null; }
+  if(neural.url){ try{ URL.revokeObjectURL(neural.url); }catch(_){} neural.url = null; }
+}
+function systemSay(clean){
+  try{
+    const u = new SpeechSynthesisUtterance(clean);
+    if(kidVoice) u.voice = kidVoice;
+    u.rate = 0.92; u.pitch = 1.05;
+    speechSynthesis.speak(u);
+  }catch(_){}
+}
+function say(text){
+  if(!voiceOn) return;
+  const clean = stripEmoji(text);
+  const tok = ++sayToken;
+  stopTalking();
+  if(neural.ready){
+    (async () => {
+      try{
+        const url = await neuralBlobURL(clean);
+        if(tok !== sayToken || !voiceOn) return;   // a newer line superseded this one
+        neural.audioEl = new Audio(url);
+        neural.audioEl.play().catch(()=>{ if(tok === sayToken) systemSay(clean); });
+      }catch(_){ if(tok === sayToken) systemSay(clean); }
+    })();
+    return;
+  }
+  systemSay(clean);
+}
+window.say = say;
+const voiceBtn = document.getElementById('voiceBtn');
+voiceBtn.addEventListener('click', ()=>{
+  voiceOn = !voiceOn;
+  setLabel('voiceBtn', 'Read aloud: ' + (voiceOn ? (neural.ready ? 'ON (natural)' : 'ON') : 'OFF'));
+  voiceBtn.classList.toggle('active', voiceOn);
+  if(voiceOn) say('Read aloud is on!'); else stopTalking();
+});
+// read the fun-fact box aloud when browsing facts
+for(const bid of ['nextFact','prevFact']){
+  document.getElementById(bid).addEventListener('click', ()=>{
+    setTimeout(()=> say(document.getElementById('factTitle').textContent + '. ' + document.getElementById('factBody').textContent), 60);
+  });
+}
+
+// voice commands (Chrome speech recognition)
+const SRclass = window.SpeechRecognition || window.webkitSpeechRecognition;
+let listening = false, rec = null;
+const micBtn = document.getElementById('micBtn');
+function handleVoice(txt){
+  const go = id => {
+    const s = STOPS.find(x => x.id === id);
+    if(window.MODE !== 'journey') setMode('journey');
+    ship.target = (id==='garg') ? {x:s.x-0.085, y:s.y+0.03} : {x:s.x, y:s.y};
+    say('Flying to ' + s.name + '!');
+  };
+  if(/saturn/.test(txt)) go('saturn');
+  else if(/earth|home/.test(txt)) go('earth');
+  else if(/miller|water|wave/.test(txt)) go('miller');
+  else if(/mann|ice|frozen/.test(txt)) go('mann');
+  else if(/wormhole|worm hole|shortcut/.test(txt)) go('worm');
+  else if(/orbit/.test(txt)){ setMode('blackhole'); say('Orbiting the black hole!'); }
+  else if(/black hole|gargantua/.test(txt)){ if(window.MODE==='journey') go('garg'); else say('You are already at the black hole!'); }
+  else if(/closer|zoom in/.test(txt)){ tDist = Math.max(4.5, tDist*0.72); say('Flying closer!'); }
+  else if(/away|farther|further|back/.test(txt)){ tDist = Math.min(34, tDist*1.35); say('Flying away!'); }
+  else if(/journey|map/.test(txt)){ setMode('journey'); say('Back to the star map!'); }
+  else if(/stop|wait/.test(txt)){ ship.target = null; ship.vx = 0; ship.vy = 0; say('Stopping the ship.'); }
+}
+if(SRclass){
+  rec = new SRclass();
+  rec.lang = 'en-US';
+  rec.continuous = true;
+  rec.interimResults = false;
+  rec.onresult = e => {
+    const txt = e.results[e.results.length-1][0].transcript.toLowerCase();
+    handleVoice(txt);
+  };
+  rec.onend = () => { if(listening){ try{ rec.start(); }catch(_){} } };
+  rec.onerror = ev => {
+    if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed'){
+      listening = false;
+      setLabel('micBtn', 'Mic blocked');
+      micBtn.classList.remove('listening');
+    }
+  };
+}
+micBtn.addEventListener('click', ()=>{
+  if(!rec){ setLabel('micBtn', 'Not supported'); return; }
+  listening = !listening;
+  if(listening){
+    try{ rec.start(); }catch(_){}
+    say('I am listening! Try saying: go to Saturn.');
+  } else {
+    try{ rec.stop(); }catch(_){}
+  }
+  setLabel('micBtn', 'Voice control: ' + (listening ? 'ON' : 'OFF'));
+  micBtn.classList.toggle('listening', listening);
+});
+
+// ---- SOUND EFFECTS (synthesized live, no files) ----
+let sfxOn = true;
+let AC = null, master = null, rumbleGain = null, droneGain = null, droneOsc = null;
+let windGain = null, windFilter = null, glideOsc = null, glideGain = null, sfxLastLr = 0, sfxPrevDist = null;
+function sfxEnsure(){
+  if(!sfxOn) return false;
+  if(!AC){
+    try{
+      AC = new (window.AudioContext||window.webkitAudioContext)();
+      master = AC.createGain(); master.gain.value = 0.25; master.connect(AC.destination);
+      // rocket rumble loop (silent until thrusting)
+      const bufSize = AC.sampleRate;
+      const buf = AC.createBuffer(1, bufSize, AC.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for(let i=0;i<bufSize;i++){ const w = Math.random()*2-1; last = (last + 0.02*w)/1.02; d[i] = last*3.5; }
+      const src = AC.createBufferSource(); src.buffer = buf; src.loop = true;
+      const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=220;
+      rumbleGain = AC.createGain(); rumbleGain.gain.value = 0;
+      src.connect(lp); lp.connect(rumbleGain); rumbleGain.connect(master); src.start();
+      // gravity danger drone (silent until near the hole)
+      droneOsc = AC.createOscillator(); droneOsc.type='sawtooth'; droneOsc.frequency.value=50;
+      const dlp = AC.createBiquadFilter(); dlp.type='lowpass'; dlp.frequency.value=300;
+      droneGain = AC.createGain(); droneGain.gain.value = 0;
+      droneOsc.connect(dlp); dlp.connect(droneGain); droneGain.connect(master); droneOsc.start();
+      // motion wind: she hears how fast she is moving
+      const wlen = AC.sampleRate;
+      const wbuf = AC.createBuffer(1, wlen, AC.sampleRate);
+      const wd = wbuf.getChannelData(0);
+      for(let i=0;i<wlen;i++) wd[i] = Math.random()*2-1;
+      const wsrc = AC.createBufferSource(); wsrc.buffer = wbuf; wsrc.loop = true;
+      windFilter = AC.createBiquadFilter(); windFilter.type='bandpass'; windFilter.frequency.value=500; windFilter.Q.value=0.7;
+      windGain = AC.createGain(); windGain.gain.value = 0;
+      wsrc.connect(windFilter); windFilter.connect(windGain); windGain.connect(master); wsrc.start();
+      // time-warp tone: sings only while her time-slowdown is CHANGING
+      glideOsc = AC.createOscillator(); glideOsc.type='sine'; glideOsc.frequency.value=220;
+      glideGain = AC.createGain(); glideGain.gain.value = 0;
+      glideOsc.connect(glideGain); glideGain.connect(master); glideOsc.start();
+    }catch(_){ return false; }
+  }
+  if(AC.state === 'suspended'){ try{ AC.resume(); }catch(_){} }
+  return true;
+}
+function envG(g, t0, a, peak, dur){
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(peak, t0+a);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+}
+function tone(freq, dur, type, peak, slideTo){
+  if(!sfxEnsure()) return;
+  const t0 = AC.currentTime;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type||'sine'; o.frequency.setValueAtTime(freq, t0);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(slideTo,1), t0+dur);
+  envG(g, t0, 0.01, peak||0.3, dur);
+  o.connect(g); g.connect(master);
+  o.start(t0); o.stop(t0+dur+0.05);
+}
+function noiseBurst(dur, f0, f1, peak){
+  if(!sfxEnsure()) return;
+  const t0 = AC.currentTime;
+  const len = Math.ceil(AC.sampleRate*dur);
+  const b = AC.createBuffer(1, len, AC.sampleRate);
+  const ch = b.getChannelData(0);
+  for(let i=0;i<len;i++) ch[i] = Math.random()*2-1;
+  const n = AC.createBufferSource(); n.buffer = b;
+  const f = AC.createBiquadFilter(); f.type='bandpass'; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(Math.max(f0,1), t0);
+  f.frequency.exponentialRampToValueAtTime(Math.max(f1,1), t0+dur);
+  const g = AC.createGain(); envG(g, t0, 0.01, peak||0.25, dur);
+  n.connect(f); f.connect(g); g.connect(master);
+  n.start(t0);
+}
+window.sfxClick   = ()=> tone(660, 0.07, 'triangle', 0.22);
+window.sfxBlip    = ()=> tone(420, 0.12, 'sine', 0.32, 630);
+window.sfxTwinkle = ()=>{ tone(880, 0.12, 'sine', 0.18); setTimeout(()=> tone(1320, 0.14, 'sine', 0.15), 70); };
+window.sfxSuccess = ()=>{ [523,659,784].forEach((f,i)=> setTimeout(()=> tone(f, 0.18, 'triangle', 0.28), i*90)); };
+window.sfxWarp    = ()=>{ tone(180, 0.7, 'sine', 0.38, 1400); noiseBurst(0.7, 300, 2400, 0.18); };
+window.sfxBoom    = ()=>{ tone(160, 1.1, 'sine', 0.55, 38); noiseBurst(0.8, 500, 60, 0.32); };
+window.sfxSplash  = ()=> noiseBurst(0.5, 2000, 250, 0.28);
+window.sfxWhoosh  = ()=> noiseBurst(0.35, 260, 1600, 0.2);
+window.sfxFrame = function(dt){
+  if(!AC || !sfxOn) return;
+  const now = AC.currentTime;
+  const j = window.MODE === 'journey';
+  const thr = j && ship.thrusting && !cardEl.classList.contains('show');
+  rumbleGain.gain.setTargetAtTime(thr ? 0.5 : 0, now, 0.08);
+  const pv = j ? Math.max(0, Math.min(1, (shipPullNow-25)/300)) : 0;
+  droneGain.gain.setTargetAtTime(pv*0.35, now, 0.1);
+  droneOsc.frequency.setTargetAtTime(45+pv*55, now, 0.1);
+  // motion wind — volume and brightness track her speed (rate of change of position)
+  let spd = 0;
+  if(j){
+    spd = Math.hypot(ship.vx*innerWidth, ship.vy*innerHeight);
+  } else {
+    if(sfxPrevDist !== null && dt > 0) spd = Math.abs(dist - sfxPrevDist)/dt * 28;
+    sfxPrevDist = dist;
+  }
+  windGain.gain.setTargetAtTime(Math.min(0.28, spd/480*0.28), now, 0.12);
+  windFilter.frequency.setTargetAtTime(260 + Math.min(2200, spd*4.5), now, 0.1);
+  // time-warp tone — pitch encodes how slow her clock runs; audible only while it CHANGES
+  const r = Math.max(1, window.getDilation ? getDilation() : 1);
+  const lr = Math.log10(r);
+  const rate = dt > 0 ? Math.abs(lr - sfxLastLr)/dt : 0;
+  sfxLastLr = lr;
+  glideGain.gain.setTargetAtTime(Math.min(0.22, rate*0.9), now, 0.15);
+  glideOsc.frequency.setTargetAtTime(220 + lr*170, now, 0.06);
+};
+const sndBtn = document.getElementById('sndBtn');
+sndBtn.addEventListener('click', ()=>{
+  sfxOn = !sfxOn;
+  setLabel('sndBtn', 'Sounds: ' + (sfxOn ? 'ON' : 'OFF'));
+  sndBtn.classList.toggle('active', sfxOn);
+  if(AC) master.gain.value = sfxOn ? 0.25 : 0;
+});
+// every button gives a tiny click so she knows it worked
+document.addEventListener('click', e=>{
+  const b = e.target && e.target.closest ? e.target.closest('button') : null;
+  if(b && window.sfxClick) sfxClick();
+}, true);
+
+// ---- GRAVITY: visualization + real pull ----
+let showGrav = true, fellCooldown = 0, shipPullNow = 0;
+const gravBtn = document.getElementById('gravBtn');
+gravBtn.addEventListener('click', ()=>{
+  showGrav = !showGrav;
+  setLabel('gravBtn', 'Gravity: ' + (showGrav ? 'ON' : 'OFF'));
+  gravBtn.classList.toggle('active', showGrav);
+});
+// k = how much each body bends the grid, g = pulling strength for arrows
+const GMASS = [
+  {s:0, k:520,   g:25000},
+  {s:1, k:950,   g:30000},
+  {s:3, k:650,   g:25000},
+  {s:4, k:750,   g:28000},
+  {s:5, k:12000, g:600000},
+];
+let warpPulse = 1;
+function warpPt(px, py, W, H){
+  let ox=0, oy=0;
+  for(const m of GMASS){
+    const st=STOPS[m.s];
+    const dx=st.x*W-px, dy=st.y*H-py;
+    const d=Math.max(Math.hypot(dx,dy), 28);
+    const s=Math.min(m.k/d, 60)*warpPulse;
+    ox+=dx/d*s; oy+=dy/d*s;
+  }
+  return [px+ox, py+oy];
+}
+function drawGravGrid(W,H){
+  mx.strokeStyle='rgba(110,150,255,0.16)'; mx.lineWidth=1;
+  const step=44, ymax=H*0.82;
+  for(let y=0;y<=ymax;y+=step){
+    mx.beginPath();
+    for(let x=0;x<=W;x+=18){
+      const p=warpPt(x,y,W,H);
+      if(x===0) mx.moveTo(p[0],p[1]); else mx.lineTo(p[0],p[1]);
+    }
+    mx.stroke();
+  }
+  for(let x=0;x<=W;x+=step){
+    mx.beginPath();
+    for(let y=0;y<=ymax;y+=18){
+      const p=warpPt(x,y,W,H);
+      if(y===0) mx.moveTo(p[0],p[1]); else mx.lineTo(p[0],p[1]);
+    }
+    mx.stroke();
+  }
+}
+function gravForce(px,py,W,H){
+  let fx=0, fy=0;
+  for(const m of GMASS){
+    const st=STOPS[m.s];
+    const dx=st.x*W-px, dy=st.y*H-py;
+    const d=Math.max(Math.hypot(dx,dy), 30);
+    const f=m.g/(d*d);
+    fx+=dx/d*f; fy+=dy/d*f;
+  }
+  return [fx,fy];
+}
+function drawGravArrows(W,H,t){
+  const step=110, GAP=24;
+  for(let x=step*0.5;x<W;x+=step){
+    for(let y=step*0.5;y<H*0.8;y+=step){
+      const F=gravForce(x,y,W,H);
+      const f=Math.hypot(F[0],F[1]);
+      if(f<0.5) continue;
+      // twitch: nervous jitter, stronger where gravity is stronger
+      const jit = Math.sin(t*7 + x*0.13 + y*0.17) * Math.min(0.15, 0.02 + f*0.004);
+      const a = Math.atan2(F[1],F[0]) + jit;
+      const len = Math.min(26, 5+f*1.4) * (1 + 0.14*Math.sin(t*5 + x*0.05 + y*0.08));
+      // crawl: arrows stream along the pull direction, faster in stronger fields
+      const crawl = (t * Math.min(55, 6 + f*2.2)) % GAP;
+      const fade = Math.sin(Math.PI * crawl/GAP);        // fade in, fade out
+      const bx = x + Math.cos(a)*crawl, by = y + Math.sin(a)*crawl;
+      const al = Math.min(0.9, 0.25+f*0.05) * (0.35 + 0.65*fade);
+      mx.strokeStyle='rgba(255,179,71,'+al+')';
+      mx.fillStyle=mx.strokeStyle;
+      mx.lineWidth=1.5;
+      mx.beginPath();
+      mx.moveTo(bx,by);
+      mx.lineTo(bx+Math.cos(a)*len, by+Math.sin(a)*len);
+      mx.stroke();
+      mx.save();
+      mx.translate(bx+Math.cos(a)*len, by+Math.sin(a)*len);
+      mx.rotate(a);
+      mx.beginPath(); mx.moveTo(6,0); mx.lineTo(-2,3.4); mx.lineTo(-2,-3.4); mx.closePath(); mx.fill();
+      mx.restore();
+    }
+  }
+}
+
+// predicted drift: where gravity takes the ship if she cuts her engines
+function drawDriftTrail(W,H,t){
+  const gS = STOPS[5];
+  let px = ship.x, py = ship.y, vx = ship.vx, vy = ship.vy;
+  const pts = [];
+  const DT = 0.09;
+  let fell = false;
+  for(let i=0;i<70;i++){
+    const gdx=(gS.x-px)*W, gdy=(gS.y-py)*H;
+    const gd=Math.max(Math.hypot(gdx,gdy), 20);
+    const pull=Math.min(600000/(gd*gd), 900);
+    vx += (gdx/gd)*pull/W*DT;
+    vy += (gdy/gd)*pull/H*DT;
+    const damp=Math.exp(-1.3*DT); vx*=damp; vy*=damp;
+    px += vx*DT; py += vy*DT;
+    pts.push([px*W, py*H]);
+    if(gd < 62){ fell = true; break; }
+    if(px<0||px>1||py<0||py>0.82) break;
+  }
+  if(pts.length < 2) return;
+  mx.setLineDash([3,7]); mx.lineDashOffset = -t*22;
+  mx.strokeStyle = fell ? 'rgba(255,90,70,0.7)' : 'rgba(160,200,255,0.5)';
+  mx.lineWidth = 2;
+  mx.beginPath(); mx.moveTo(ship.x*W, ship.y*H);
+  for(const p of pts) mx.lineTo(p[0], p[1]);
+  mx.stroke(); mx.setLineDash([]);
+  if(fell){
+    const e = pts[pts.length-1];
+    mx.fillStyle = 'rgba(255,90,70,'+(0.6+0.4*Math.sin(t*8)).toFixed(2)+')';
+    mx.beginPath();
+    mx.moveTo(e[0], e[1]-9); mx.lineTo(e[0]+8, e[1]+5); mx.lineTo(e[0]-8, e[1]+5); mx.closePath(); mx.fill();
+    mx.fillStyle = '#0b0d14';
+    mx.fillRect(e[0]-1.2, e[1]-4.5, 2.4, 5.5);
+    mx.fillRect(e[0]-1.2, e[1]+2.2, 2.4, 2.2);
+  }
+}
+
+// falling dust: test particles that ride the gravity field
+const MOTES = [];
+function spawnMote(W,H){
+  return {x:Math.random()*W, y:(0.04+Math.random()*0.76)*H,
+          vx:(Math.random()-0.5)*22, vy:(Math.random()-0.5)*22};
+}
+function drawMotes(W,H,dt){
+  while(MOTES.length < 90) MOTES.push(spawnMote(W,H));
+  const gS = STOPS[5];
+  for(let i=MOTES.length-1;i>=0;i--){
+    const m = MOTES[i];
+    const F = gravForce(m.x, m.y, W, H);
+    m.vx += F[0]*26*dt; m.vy += F[1]*26*dt;
+    m.vx *= 0.995; m.vy *= 0.995;
+    let sp = Math.hypot(m.vx, m.vy);
+    if(sp > 300){ m.vx *= 300/sp; m.vy *= 300/sp; sp = 300; }
+    m.x += m.vx*dt; m.y += m.vy*dt;
+    const dg = Math.hypot(gS.x*W-m.x, gS.y*H-m.y);
+    if(dg < 30 || m.x < -20 || m.x > W+20 || m.y < -20 || m.y > H*0.85){
+      MOTES[i] = spawnMote(W,H); continue;
+    }
+    const heat = Math.min(1, sp/220);   // slow = pale blue, fast = hot amber
+    const L = Math.min(16, 2 + sp*0.05);
+    mx.strokeStyle = 'rgba(' + Math.round(140+115*heat) + ',' + Math.round(170+9*heat) + ',' + Math.round(255-184*heat) + ',' + (0.25+0.55*heat).toFixed(2) + ')';
+    mx.lineWidth = 1.5;
+    mx.beginPath();
+    mx.moveTo(m.x, m.y);
+    mx.lineTo(m.x - m.vx*L/Math.max(sp,1), m.y - m.vy*L/Math.max(sp,1));
+    mx.stroke();
+  }
+}
+function fellIn(){
+  fellCooldown = 3;
+  if(window.sfxBoom) sfxBoom();
+  const fl=document.getElementById('flash');
+  fl.style.background='#ffb347'; fl.style.opacity=1;
+  setTimeout(()=>{ fl.style.opacity=0; setTimeout(()=>{ fl.style.background='#fff'; }, 400); }, 350);
+  const m=STOPS[4];
+  ship.x=m.x; ship.y=m.y-0.07; ship.vx=0; ship.vy=0; ship.target=null; ship.a=Math.PI;
+  cardShownFor='miller';
+  showCard('fellin');
+}
+
+// ---- ship state & input ----
+const ship = {x:0.08, y:0.52, vx:0, vy:0, a:0, thrusting:false, target:null};
+const keys = {};
+window.addEventListener('keydown', e=>{
+  if(e.target && e.target.tagName === 'INPUT') return;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  keys[e.key] = true;
+  if(cardEl.classList.contains('show')) closeCard();
+  if(window.MODE === 'journey') ship.target = null;
+});
+window.addEventListener('keyup', e=> keys[e.key] = false);
+let mapDown = false, curPX = -1, curPY = -1, lastHovId = null;
+const ripples = [];
+function mapTarget(e, snap){
+  const fx = e.clientX/innerWidth, fy = e.clientY/innerHeight;
+  const s = snap ? STOPS.find(s => Math.hypot((s.x-fx)*innerWidth, (s.y-fy)*innerHeight) < Math.max(s.r+45, 62)) : null;
+  ship.target = s ? (s.id==='garg' ? {x:s.x-0.085, y:s.y+0.03} : {x:s.x, y:s.y}) : {x:Math.min(0.98,Math.max(0.02,fx)), y:Math.min(0.72, Math.max(0.08, fy))};
+}
+MAPC.addEventListener('pointerdown', e=>{
+  mapDown = true;
+  ripples.push({x:e.clientX, y:e.clientY, t0:performance.now()});
+  if(window.sfxBlip) sfxBlip();
+  try{ MAPC.setPointerCapture(e.pointerId); }catch(_){}
+  mapTarget(e, true);
+});
+MAPC.addEventListener('pointermove', e=>{ curPX=e.clientX; curPY=e.clientY; if(mapDown) mapTarget(e, false); });
+MAPC.addEventListener('pointerup', e=>{ mapDown = false; mapTarget(e, true); });
+
+// ---- docking / wormhole ----
+let dockedStop = null, cardShownFor = null, wormCooldown = 0;
+function wormholeJump(){
+  if(window.sfxWarp) sfxWarp();
+  const fl = document.getElementById('flash');
+  fl.style.opacity = 1;
+  setTimeout(()=>{ fl.style.opacity = 0; }, 300);
+  ship.x = 0.52; ship.vx = 0.02; ship.vy = 0; ship.target = null;
+  setTimeout(()=> showCard('worm'), 350);
+}
+
+// ---- time dilation source of truth ----
+window.getDilation = function(){
+  if(window.MODE === 'journey'){
+    if(dockedStop){ window.dilPrefix = 'At ' + dockedStop.name + ' \u2014 '; return dockedStop.ratio; }
+    if(ship.x < DIVX){ window.dilPrefix = 'Our galaxy \u2014 '; return 1; }
+    const g = STOPS[5];
+    const d = Math.hypot(ship.x-g.x, ship.y-g.y);
+    const c = Math.max(0, Math.min(1, 1 - d/0.5));
+    window.dilPrefix = 'Flying \u2014 ';
+    return 1 + Math.pow(c,3)*61319;
+  }
+  if(millerLanded){ window.dilPrefix = "On Miller's planet \u2014 "; return 61320; }
+  window.dilPrefix = '';
+  return ratioFromV(vFromDist(dist));
+};
+
+// ---- starfield ----
+const MSTARS = [];
+for(let i=0;i<150;i++) MSTARS.push({x:Math.random(), y:Math.random(), r:Math.random()*1.4+0.3, p:Math.random()*7});
+
+function drawStop(s, W, H, t){
+  const X = s.x*W, Y = s.y*H;
+  mx.save();
+  if(s.id==='earth'){
+    const g = mx.createRadialGradient(X-8,Y-8,4,X,Y,s.r);
+    g.addColorStop(0,'#7fd4ff'); g.addColorStop(1,'#0a3f8f');
+    mx.fillStyle=g; mx.beginPath(); mx.arc(X,Y,s.r,0,7); mx.fill();
+    mx.fillStyle='rgba(70,190,90,0.85)';
+    mx.beginPath(); mx.ellipse(X-7,Y-4,9,6,0.5,0,7); mx.fill();
+    mx.beginPath(); mx.ellipse(X+9,Y+8,7,4,-0.4,0,7); mx.fill();
+  } else if(s.id==='saturn'){
+    mx.fillStyle='#d9b06d'; mx.beginPath(); mx.arc(X,Y,s.r*0.72,0,7); mx.fill();
+    mx.strokeStyle='rgba(230,200,150,0.9)'; mx.lineWidth=4;
+    mx.beginPath(); mx.ellipse(X,Y,s.r*1.25,s.r*0.42,-0.35,0,7); mx.stroke();
+  } else if(s.id==='worm'){
+    const pu = 0.6+0.4*Math.sin(t*3);
+    const g = mx.createRadialGradient(X,Y,2,X,Y,s.r);
+    g.addColorStop(0,'rgba(255,255,255,0.95)');
+    g.addColorStop(0.5,'rgba(170,140,255,'+(0.5*pu)+')');
+    g.addColorStop(1,'rgba(120,80,255,0)');
+    mx.fillStyle=g; mx.beginPath(); mx.arc(X,Y,s.r,0,7); mx.fill();
+    mx.strokeStyle='rgba(200,180,255,0.9)'; mx.lineWidth=2;
+    mx.setLineDash([6,5]); mx.lineDashOffset=-t*20;
+    mx.beginPath(); mx.arc(X,Y,s.r*0.8,0,7); mx.stroke(); mx.setLineDash([]);
+  } else if(s.id==='mann'){
+    const g = mx.createRadialGradient(X-6,Y-6,3,X,Y,s.r);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(1,'#93b6c9');
+    mx.fillStyle=g; mx.beginPath(); mx.arc(X,Y,s.r,0,7); mx.fill();
+    mx.fillStyle='rgba(120,150,170,0.6)';
+    mx.beginPath(); mx.ellipse(X+5,Y-6,8,4,0.3,0,7); mx.fill();
+    mx.beginPath(); mx.ellipse(X-8,Y+7,6,3,-0.5,0,7); mx.fill();
+  } else if(s.id==='miller'){
+    const g = mx.createRadialGradient(X-6,Y-6,3,X,Y,s.r);
+    g.addColorStop(0,'#4fa8e0'); g.addColorStop(1,'#0b2f66');
+    mx.fillStyle=g; mx.beginPath(); mx.arc(X,Y,s.r,0,7); mx.fill();
+    mx.strokeStyle='rgba(255,255,255,0.8)'; mx.lineWidth=2;
+    for(let k=0;k<3;k++){
+      mx.beginPath(); mx.arc(X-6+k*7, Y+2+((k%2)*4), 5, Math.PI*1.1, Math.PI*1.9); mx.stroke();
+    }
+  } else if(s.id==='garg'){
+    mx.shadowColor='#ffb347'; mx.shadowBlur=26;
+    mx.strokeStyle='#ffb347'; mx.lineWidth=5;
+    mx.beginPath(); mx.arc(X,Y,s.r*0.85,0,7); mx.stroke();
+    mx.shadowBlur=0;
+    mx.fillStyle='#000'; mx.beginPath(); mx.arc(X,Y,s.r*0.72,0,7); mx.fill();
+  }
+  mx.restore();
+  mx.fillStyle='#fff'; mx.font='600 13px system-ui'; mx.textAlign='center';
+  mx.fillText(s.name, X, Y+s.r+18);
+  mx.fillStyle='#ffb347'; mx.font='11px system-ui';
+  mx.fillText(s.note, X, Y+s.r+33);
+}
+
+let lastM = performance.now(), mFirst = true;
+function missionLoop(){
+  const now = performance.now();
+  const dt = Math.min(0.05, (now-lastM)/1000); lastM = now;
+  const t = now/1000;
+
+  if(window.MODE === 'journey'){
+    const paused = cardEl.classList.contains('show');
+    if(fellCooldown>0) fellCooldown-=dt;
+    // --- ship physics ---
+    if(!paused){
+    const ROT=3.4, ACC=0.24;
+    if(keys['ArrowLeft'])  ship.a -= ROT*dt;
+    if(keys['ArrowRight']) ship.a += ROT*dt;
+    let thrust = !!keys['ArrowUp'];
+    if(keys['ArrowDown']){ ship.vx*=Math.exp(-4*dt); ship.vy*=Math.exp(-4*dt); }
+    if(ship.target){
+      const dx=ship.target.x-ship.x, dy=ship.target.y-ship.y, d=Math.hypot(dx,dy);
+      if(d < 0.01){ ship.target=null; ship.vx*=0.2; ship.vy*=0.2; }
+      else{
+        const want=Math.atan2(dy,dx);
+        let da=want-ship.a; da=Math.atan2(Math.sin(da),Math.cos(da));
+        ship.a += Math.max(-ROT*dt, Math.min(ROT*dt, da));
+        // speed shrinks as we approach, so we brake instead of overshooting
+        const spd = Math.min(0.16, 0.30*d + 0.015);
+        const k = Math.min(1, 3.5*dt);
+        ship.vx += (Math.cos(want)*spd - ship.vx)*k;
+        ship.vy += (Math.sin(want)*spd - ship.vy)*k;
+        thrust = d > 0.04;
+      }
+    } else if(thrust){ ship.vx += Math.cos(ship.a)*ACC*dt; ship.vy += Math.sin(ship.a)*ACC*dt; }
+    if(ship.target){ /* velocity handled above */ }
+    const damp=Math.exp(-1.3*dt); ship.vx*=damp; ship.vy*=damp;
+    const sp=Math.hypot(ship.vx,ship.vy); if(sp>0.17){ ship.vx*=0.17/sp; ship.vy*=0.17/sp; }
+    ship.x=Math.min(0.98,Math.max(0.02, ship.x+ship.vx*dt));
+    ship.y=Math.min(0.74,Math.max(0.07, ship.y+ship.vy*dt));
+    // the black hole really pulls your ship!
+    {
+      const gS=STOPS[5];
+      const Wp=innerWidth, Hp=innerHeight;
+      const gdx=(gS.x-ship.x)*Wp, gdy=(gS.y-ship.y)*Hp;
+      const gd=Math.max(Math.hypot(gdx,gdy), 20);
+      const pull=Math.min(600000/(gd*gd), 900);   // px/s², inverse-square
+      shipPullNow = pull;
+      ship.vx += (gdx/gd)*pull/Wp*dt;
+      ship.vy += (gdy/gd)*pull/Hp*dt;
+      if(gd < 62 && fellCooldown<=0) fellIn();
+    }
+    ship.thrusting=thrust;
+    }
+
+    // --- docking ---
+    const W=innerWidth, H=innerHeight;
+    mx.setTransform(window.devicePixelRatio||1, 0, 0, window.devicePixelRatio||1, 0, 0);
+    dockedStop=null;
+    if(wormCooldown>0) wormCooldown-=dt;
+    for(const s of STOPS){
+      const d=Math.hypot((s.x-ship.x)*W,(s.y-ship.y)*H);
+      const dockR = (s.id==='garg') ? 135 : s.r+18;
+      if(d < dockR){
+        if(s.id==='worm'){
+          if(wormCooldown<=0){ wormCooldown=2.5; wormholeJump(); cardShownFor='worm'; }
+        } else {
+          dockedStop=s;
+          if(cardShownFor!==s.id){ cardShownFor=s.id; if(window.sfxSuccess) sfxSuccess(); showCard(s.id); }
+        }
+      }
+    }
+    if(cardShownFor && cardShownFor!=='worm'){
+      const ls=STOPS.find(s=>s.id===cardShownFor);
+      if(ls){
+        const resetR = ((ls.id==='garg') ? 135 : ls.r+18) + 45;
+        if(Math.hypot((ls.x-ship.x)*W,(ls.y-ship.y)*H) > resetR) cardShownFor=null;
+      }
+    }
+
+    // --- draw ---
+    mx.fillStyle='#020208'; mx.fillRect(0,0,W,H);
+    for(const st of MSTARS){
+      mx.globalAlpha = 0.5+0.5*Math.sin(t*1.5+st.p);
+      mx.fillStyle='#cdd8ff';
+      mx.fillRect(st.x*W, st.y*H, st.r, st.r);
+    }
+    mx.globalAlpha=1;
+    if(showGrav){
+      warpPulse = 1 + 0.05*Math.sin(t*1.4);
+      drawGravGrid(W,H);
+      drawMotes(W,H,dt);
+      if(shipPullNow > 4 || Math.hypot(ship.vx*W, ship.vy*H) > 15) drawDriftTrail(W,H,t);
+    }
+    mx.strokeStyle='rgba(160,120,255,0.35)'; mx.lineWidth=2; mx.setLineDash([10,10]);
+    mx.beginPath(); mx.moveTo(DIVX*W, H*0.04); mx.lineTo(DIVX*W, H*0.8); mx.stroke(); mx.setLineDash([]);
+    mx.fillStyle='rgba(190,170,255,0.75)'; mx.font='11px system-ui'; mx.textAlign='center';
+    mx.fillText('\u27f5 our galaxy', DIVX*W-60, H*0.06);
+    mx.fillText('another galaxy \u27f6', DIVX*W+70, H*0.06);
+    mx.strokeStyle='rgba(255,179,71,0.25)'; mx.lineWidth=1.5; mx.setLineDash([3,7]);
+    mx.beginPath(); mx.moveTo(STOPS[0].x*W, STOPS[0].y*H);
+    for(let i=1;i<STOPS.length;i++) mx.lineTo(STOPS[i].x*W, STOPS[i].y*H);
+    mx.stroke(); mx.setLineDash([]);
+    for(const s of STOPS) drawStop(s, W, H, t);
+    // black hole danger zone + pull warning
+    {
+      const gS=STOPS[5], gX=gS.x*W, gY=gS.y*H;
+      mx.strokeStyle='rgba(255,70,70,0.6)'; mx.lineWidth=1.5; mx.setLineDash([4,4]);
+      mx.beginPath(); mx.arc(gX,gY,62,0,7); mx.stroke();
+      mx.strokeStyle='rgba(255,130,60,0.25)';
+      mx.beginPath(); mx.arc(gX,gY,130,0,7); mx.stroke(); mx.setLineDash([]);
+      mx.fillStyle='rgba(255,90,60,0.85)'; mx.font='10px system-ui'; mx.textAlign='center';
+      mx.fillText('point of no return', gX, gY-52);
+      if(shipPullNow > 30){
+        const sx=ship.x*W, sy=ship.y*H;
+        const a=Math.atan2(gY-sy, gX-sx);
+        const L=Math.min(46, 10+shipPullNow*0.12);
+        const pulse=0.55+0.45*Math.sin(t*10);
+        mx.strokeStyle='rgba(255,60,60,'+pulse+')'; mx.lineWidth=3;
+        mx.beginPath(); mx.moveTo(sx+Math.cos(a)*16, sy+Math.sin(a)*16);
+        mx.lineTo(sx+Math.cos(a)*(16+L), sy+Math.sin(a)*(16+L)); mx.stroke();
+        mx.fillStyle='rgba(255,80,80,'+pulse+')'; mx.font='700 11px system-ui';
+        mx.fillText('PULLING!', sx, sy-24);
+      }
+    }
+    if(dockedStop){
+      mx.strokeStyle='rgba(255,255,255,0.7)'; mx.lineWidth=1.5; mx.setLineDash([5,5]); mx.lineDashOffset=-t*15;
+      mx.beginPath(); mx.arc(dockedStop.x*W, dockedStop.y*H, dockedStop.r+14, 0, 7); mx.stroke(); mx.setLineDash([]);
+    }
+    // hover helper: glow whichever planet the cursor is near (forgiving radius)
+    if(curPX >= 0){
+      const hov = STOPS.find(s => Math.hypot(s.x*W-curPX, s.y*H-curPY) < Math.max(s.r+45, 62));
+      if(hov && hov.id !== lastHovId && window.sfxTwinkle) sfxTwinkle();
+      lastHovId = hov ? hov.id : null;
+      if(hov){
+        const pu2 = 0.5+0.5*Math.sin(t*6);
+        mx.strokeStyle = 'rgba(255,255,255,'+(0.35+0.4*pu2)+')';
+        mx.lineWidth = 3;
+        mx.beginPath(); mx.arc(hov.x*W, hov.y*H, hov.r+20, 0, 7); mx.stroke();
+      }
+    }
+    // click ripples so she can SEE her clicks land
+    for(let i=ripples.length-1; i>=0; i--){
+      const age = (now-ripples[i].t0)/600;
+      if(age >= 1){ ripples.splice(i,1); continue; }
+      mx.strokeStyle = 'rgba(255,255,255,'+(0.85*(1-age))+')';
+      mx.lineWidth = 2.5;
+      mx.beginPath(); mx.arc(ripples[i].x, ripples[i].y, 10+age*42, 0, 7); mx.stroke();
+    }
+    mx.save(); mx.translate(ship.x*W, ship.y*H); mx.rotate(ship.a);
+    if(ship.thrusting){
+      mx.fillStyle='rgba(255,150,50,'+(0.6+0.4*Math.sin(t*30))+')';
+      mx.beginPath(); mx.moveTo(-9,0); mx.lineTo(-22,4); mx.lineTo(-22,-4); mx.closePath(); mx.fill();
+    }
+    mx.fillStyle='#e8ecf5'; mx.strokeStyle='#ffb347'; mx.lineWidth=1.5;
+    mx.beginPath(); mx.moveTo(15,0); mx.lineTo(-9,9); mx.lineTo(-4,0); mx.lineTo(-9,-9); mx.closePath();
+    mx.fill(); mx.stroke();
+    mx.restore();
+    mx.fillStyle='rgba(255,255,255,0.55)'; mx.font='12px system-ui'; mx.textAlign='center';
+    mx.fillText('Arrow keys, tap or drag to fly \u2014 careful: Gargantua really PULLS your ship!', W/2, H*0.895);
+  }
+
+  if(window.sfxFrame) sfxFrame(dt);
+  if(mFirst){ mFirst=false; setTimeout(()=>document.getElementById('loading').classList.add('hide'), 900); }
+  requestAnimationFrame(missionLoop);
+}
+requestAnimationFrame(missionLoop);
+
+// ---- click Miller's planet in the 3D view ----
+let g0=null;
+canvas.addEventListener('pointerdown', e=>{ g0=[e.clientX,e.clientY]; });
+canvas.addEventListener('pointerup', e=>{
+  if(!g0) return;
+  const moved = Math.hypot(e.clientX-g0[0], e.clientY-g0[1]); g0=null;
+  if(moved>6 || window.MODE!=='blackhole' || !window.planetNow) return;
+  const ro=window.camNow, pp=window.planetNow;
+  const v=[pp[0]-ro[0], pp[1]-ro[1], pp[2]-ro[2]];
+  const nz=Math.hypot(ro[0],ro[1],ro[2]);
+  const fw=[-ro[0]/nz, -ro[1]/nz, -ro[2]/nz];
+  let rt=[fw[2],0,-fw[0]];
+  const rl=Math.hypot(rt[0],rt[1],rt[2]); rt=[rt[0]/rl,rt[1]/rl,rt[2]/rl];
+  const up=[fw[1]*rt[2]-fw[2]*rt[1], fw[2]*rt[0]-fw[0]*rt[2], fw[0]*rt[1]-fw[1]*rt[0]];
+  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const z=dot(v,fw); if(z<0.2) return;
+  const ux=1.35*dot(v,rt)/z, uy=1.35*dot(v,up)/z;
+  const Wc=innerWidth, Hc=innerHeight;
+  const sx=(ux*Hc+Wc)/2, sy=Hc*(1-uy)/2;
+  const rad=Math.max(30, 0.32/z*1.35*Hc/2);
+  if(Math.hypot(e.clientX-sx, e.clientY-sy) < rad*2+10){
+    millerLanded=true; if(window.sfxSplash) sfxSplash(); showCard('miller3d');
+  }
+});
+
+setMode('journey');
+</script>
+</body>
+</html>
