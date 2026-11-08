@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420" role="img" aria-labelledby="title desc">
+  <title id="title">Gargantua — animated visualization</title>
+  <desc id="desc">A stylized black hole with accretion disk, lensed light arcs, orbiting planets, and a time-dilation ripple.</desc>
+  <defs>
+    <radialGradient id="space" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </radialGradient>
+    <radialGradient id="hole" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="70%" stop-color="#000000"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </radialGradient>
+    <linearGradient id="disk" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0"/>
+      <stop offset="20%" stop-color="#f59e0b" stop-opacity=".9"/>
+      <stop offset="45%" stop-color="#fde68a"/>
+      <stop offset="55%" stop-color="#fb923c"/>
+      <stop offset="80%" stop-color="#60a5fa" stop-opacity=".85"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="2.5"/></filter>
+  </defs>
+  <rect width="960" height="420" fill="url(#space)"/>
+  <!-- stars -->
+  <g fill="#e5e7eb" opacity=".8">
+    <circle cx="70" cy="50" r="1.2"/><circle cx="140" cy="110" r="1"/><circle cx="210" cy="40" r="1.4"/>
+    <circle cx="300" cy="80" r="1"/><circle cx="760" cy="60" r="1.3"/><circle cx="840" cy="120" r="1"/>
+    <circle cx="890" cy="45" r="1.5"/><circle cx="120" cy="330" r="1"/><circle cx="230" cy="370" r="1.2"/>
+    <circle cx="690" cy="340" r="1"/><circle cx="820" cy="360" r="1.4"/><circle cx="910" cy="300" r="1"/>
+  </g>
+
+  <!-- lensed arcs -->
+  <g fill="none" stroke-linecap="round" filter="url(#glow)" opacity=".75">
+    <path d="M 330 210 C 360 80, 600 80, 630 210" stroke="#fde68a" stroke-width="3"/>
+    <path d="M 330 210 C 360 340, 600 340, 630 210" stroke="#60a5fa" stroke-width="2.5" opacity=".7"/>
+    <path d="M 360 210 C 390 120, 570 120, 600 210" stroke="#f59e0b" stroke-width="2" opacity=".6"/>
+  </g>
+
+  <!-- accretion disk -->
+  <ellipse cx="480" cy="210" rx="220" ry="34" fill="none" stroke="url(#disk)" stroke-width="18" filter="url(#glow)" opacity=".95">
+    <animateTransform attributeName="transform" type="rotate" from="0 480 210" to="360 480 210" dur="18s" repeatCount="indefinite"/>
+  </ellipse>
+  <ellipse cx="480" cy="210" rx="185" ry="26" fill="none" stroke="#fff7ed" stroke-width="2" opacity=".35" filter="url(#soft)">
+    <animateTransform attributeName="transform" type="rotate" from="360 480 210" to="0 480 210" dur="12s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- event horizon / black hole -->
+  <circle cx="480" cy="210" r="64" fill="url(#hole)" stroke="#f59e0b" stroke-width="2" opacity=".95"/>
+  <circle cx="480" cy="210" r="68" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity=".35" filter="url(#glow)"/>
+
+  <!-- orbiting Miller-like planet -->
+  <g>
+    <circle cx="0" cy="0" r="10" fill="#38bdf8" filter="url(#glow)"/>
+    <circle cx="-3" cy="-3" r="3" fill="#e0f2fe" opacity=".8"/>
+    <animateTransform attributeName="transform" type="rotate" from="0 480 210" to="360 480 210" dur="9s" repeatCount="indefinite"/>
+    <animateMotion dur="9s" repeatCount="indefinite" path="M 480 95 A 165 115 0 1 1 479.9 95"/>
+  </g>
+
+  <!-- time ripple -->
+  <g fill="none" stroke="#a78bfa" opacity=".45">
+    <circle cx="480" cy="210" r="90">
+      <animate attributeName="r" values="90;140;90" dur="6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".45;0;.45" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="480" cy="210" r="115">
+      <animate attributeName="r" values="115;170;115" dur="6s" begin="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".35;0;.35" dur="6s" begin="2s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- labels -->
+  <g font-family="Avenir Next, Segoe UI, Arial, sans-serif" fill="#f9fafb">
+    <text x="480" y="214" text-anchor="middle" font-size="13" fill="#9ca3af">event horizon</text>
+    <text x="480" y="38" text-anchor="middle" font-size="28" font-weight="700" fill="#fde68a">GARGANTUA</text>
+    <text x="480" y="62" text-anchor="middle" font-size="14" fill="#cbd5e1">bent light · accretion disk · time dilation</text>
+    <text x="52" y="392" font-size="13" fill="#93c5fd">Earth → Saturn → Wormhole → Mann → Miller → Gargantua → Home</text>
+    <text x="908" y="392" text-anchor="end" font-size="13" fill="#c4b5fd">1 hour here ≠ 1 hour on Earth</text>
+  </g>
+</svg>
